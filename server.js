@@ -16,16 +16,15 @@ const dbName = process.env.DB_NAME;
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors({
-  origin: 'http://localhost:5173',
-}));
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+  })
+);
 
 // Middleware
 app.use(bodyParser.json());
 app.use(cors());
-
-
-
 
 app.get("/", async (req, res) => {
   try {
