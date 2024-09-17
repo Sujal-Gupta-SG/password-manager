@@ -1,6 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import bodyParser from "body-parser";
 import cors from "cors";
 
@@ -19,12 +19,10 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(bodyParser.json());
 
-
 const allowedOrigins = [
   process.env.ALLOWEDORIGIN2, // Local development
-  process.env.ALLOWEDORIGIN // Production
+  process.env.ALLOWEDORIGIN, // Production
 ];
-
 
 app.use(
   cors({
@@ -64,8 +62,7 @@ app.get("/", async (req, res) => {
   }
 });
 
-// Assuming you're using MongoDB with Express
-
+// Check if a password entry exists
 app.get("/check", async (req, res) => {
   try {
     const { site, username, userDisplayName, userEmail } = req.query;
@@ -95,32 +92,24 @@ app.get("/check", async (req, res) => {
 });
 
 // Save a password
-app.post("/", async (req, res) => {
-  const password = req.body; // Retrieve the password object from the request body
-  const db = client.db(dbName);
-  const collection = db.collection("passwords");
-
-  try {
-    // Insert the password into the collection
-    const insertResult = await collection.insertOne(password);
-    res.send({ success: true, result: insertResult });
-  } catch (error) {
-    res.status(500).send({ success: false, error: "Failed to save password" });
-  }
-});
 app.post("/save", async (req, res) => {
   try {
     const { form, user } = req.body;
 
+    if (!form || !user) {
+      return res.status(400).json({ error: "Invalid request data" });
+    }
+
     const db = client.db(dbName);
     const collection = db.collection("passwords");
 
+    // Insert the data into MongoDB
     const saveResult = await collection.insertOne({
       form,
       user,
     });
 
-    res.json(saveResult.ops[0]); // Return the saved password object
+    res.json({ success: true, result: saveResult.insertedId }); // Return the inserted ID
   } catch (error) {
     console.error("Error in /save route:", error);
     res.status(500).json({ error: "Server error" });
@@ -135,7 +124,10 @@ app.delete("/", async (req, res) => {
 
   try {
     // Perform the delete operation based on id and user info
-    const deleteResult = await collection.deleteOne({ id, ...user });
+    const deleteResult = await collection.deleteOne({
+      _id: new ObjectId(id),
+      ...user,
+    });
     if (deleteResult.deletedCount > 0) {
       res.send({ success: true, result: deleteResult });
     } else {
