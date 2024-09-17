@@ -65,6 +65,12 @@ app.use(
   })
 );
 
+app.use((req, res, next) => {
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  next();
+});
+
 app.get("/", async (req, res) => {
   const { s, e } = req.query; // Extract 's' (displayName) and 'e' (email) from the query parameters
   try {
