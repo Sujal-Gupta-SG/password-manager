@@ -16,15 +16,17 @@ const dbName = process.env.DB_NAME;
 const app = express();
 const port = process.env.PORT || 3000;
 
-
-
 // Middleware
 app.use(bodyParser.json());
-app.use(cors());
 
 app.use(
   cors({
     origin: "http://localhost:5173",
+  })
+);
+app.use(
+  cors({
+    origin: "https://password-manager-eseh.onrender.com",
   })
 );
 
