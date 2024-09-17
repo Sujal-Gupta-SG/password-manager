@@ -85,7 +85,6 @@ app.get("/", async (req, res) => {
     // Return the results as JSON
     res.json(findResult);
   } catch (error) {
-    console.error("Error fetching passwords:", error);
     res
       .status(500)
       .json({ error: "An error occurred while fetching passwords." });
