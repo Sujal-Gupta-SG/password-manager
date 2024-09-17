@@ -6,7 +6,7 @@ import cors from "cors";
 import crypto from "crypto";
 
 dotenv.config();
-const algorithm = "aes-256-cbc";
+const algorithm = process.env.ALGORITHM;
 const key = process.env.ENCRYPTION_KEY; // Must be 32 bytes
 
 // Connecting to the MongoDB Client
@@ -14,10 +14,9 @@ const url = process.env.MONGO_URI;
 const client = new MongoClient(url);
 await client.connect(); // Ensure await is used here if using ES6 modules
 const db = client.db(process.env.DB_NAME);
-const collection = db.collection("passwords");
+const collection = db.collection(process.env.COLLECTION_NAME);
 
-// App & Database
-const dbName = process.env.DB_NAME;
+// App
 const app = express();
 const port = process.env.PORT || 3000;
 
