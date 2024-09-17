@@ -19,14 +19,24 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(bodyParser.json());
 
+
+const allowedOrigins = [
+  process.env.ALLOWEDORIGIN2, // Local development
+  process.env.ALLOWEDORIGIN // Production
+];
+
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
-  })
-);
-app.use(
-  cors({
-    origin: "https://password-manager-eseh.onrender.com",
+    origin: function (origin, callback) {
+      if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
