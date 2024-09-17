@@ -21,19 +21,57 @@ app.use(bodyParser.json());
 app.use(cors());
 
 app.get("/", async (req, res) => {
-  const { s, e } = req.query; // extract 's' (displayName) and 'e' (email) from the query string
-  const db = client.db(dbName);
-  const collection = db.collection("passwords");
+  try {
+    const { s, e } = req.query; // Extract 's' (displayName) and 'e' (email) from the query parameters
+    const db = client.db(dbName);
+    const collection = db.collection("passwords");
 
-  // Find passwords by user displayName and email
-  const findResult = await collection
-    .find({
-      "user.displayName": s,
-      "user.email": e,
-    })
-    .toArray();
+    // Find passwords by user displayName and email
+    const findResult = await collection
+      .find({
+        "user.displayName": s,
+        "user.email": e,
+      })
+      .toArray();
 
-  res.json(findResult);
+    // Return the results as JSON
+    res.json(findResult);
+  } catch (error) {
+    console.error("Error fetching passwords:", error);
+    res
+      .status(500)
+      .json({ error: "An error occurred while fetching passwords." });
+  }
+});
+
+// Assuming you're using MongoDB with Express
+
+app.get("/check", async (req, res) => {
+  try {
+    const { site, username, userDisplayName, userEmail } = req.query;
+
+    const db = client.db(dbName);
+    const collection = db.collection("passwords");
+
+    const findResult = await collection.findOne({
+      "form.site": site,
+      "form.username": username,
+      "user.displayName": userDisplayName,
+      "user.email": userEmail,
+    });
+
+    if (findResult) {
+      res.json({
+        exists: true,
+        id: findResult._id,
+      });
+    } else {
+      res.json({ exists: false });
+    }
+  } catch (error) {
+    console.error("Error in /check route:", error);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 // Save a password
@@ -48,6 +86,24 @@ app.post("/", async (req, res) => {
     res.send({ success: true, result: insertResult });
   } catch (error) {
     res.status(500).send({ success: false, error: "Failed to save password" });
+  }
+});
+app.post("/save", async (req, res) => {
+  try {
+    const { form, user } = req.body;
+
+    const db = client.db(dbName);
+    const collection = db.collection("passwords");
+
+    const saveResult = await collection.insertOne({
+      form,
+      user,
+    });
+
+    res.json(saveResult.ops[0]); // Return the saved password object
+  } catch (error) {
+    console.error("Error in /save route:", error);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
@@ -69,6 +125,26 @@ app.delete("/", async (req, res) => {
     res
       .status(500)
       .send({ success: false, error: "Failed to delete password" });
+  }
+});
+
+app.delete("/delete/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const db = client.db(dbName);
+    const collection = db.collection("passwords");
+
+    const deleteResult = await collection.deleteOne({ _id: new ObjectId(id) });
+
+    if (deleteResult.deletedCount > 0) {
+      res.json({ success: true, message: "Form deleted successfully" });
+    } else {
+      res.status(404).json({ success: false, message: "Form not found" });
+    }
+  } catch (error) {
+    console.error("Error in /delete route:", error);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
