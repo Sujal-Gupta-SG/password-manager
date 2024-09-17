@@ -3,13 +3,18 @@ import dotenv from "dotenv";
 import { MongoClient, ObjectId } from "mongodb";
 import bodyParser from "body-parser";
 import cors from "cors";
+import crypto from "crypto";
 
 dotenv.config();
+const algorithm = "aes-256-cbc";
+const key = process.env.ENCRYPTION_KEY; // Must be 32 bytes
 
 // Connecting to the MongoDB Client
 const url = process.env.MONGO_URI;
 const client = new MongoClient(url);
 await client.connect(); // Ensure await is used here if using ES6 modules
+const db = client.db(process.env.DB_NAME);
+const collection = db.collection("passwords");
 
 // App & Database
 const dbName = process.env.DB_NAME;
@@ -23,6 +28,30 @@ const allowedOrigins = [
   process.env.ALLOWEDORIGIN2, // Local development
   process.env.ALLOWEDORIGIN, // Production
 ];
+
+// Function to encrypt the text (password)
+export const encrypt = (text) => {
+  const iv = crypto.randomBytes(16); // Generate a random initialization vector
+  const cipher = crypto.createCipheriv(algorithm, Buffer.from(key), iv);
+
+  let encrypted = cipher.update(text, "utf8", "hex");
+  encrypted += cipher.final("hex");
+
+  // Return the IV and encrypted text
+  return `${iv.toString("hex")}:${encrypted}`;
+};
+
+// Function to decrypt the encrypted text (password)
+export const decrypt = (encryptedText) => {
+  const [ivHex, encrypted] = encryptedText.split(":");
+  const iv = Buffer.from(ivHex, "hex");
+  const decipher = crypto.createDecipheriv(algorithm, Buffer.from(key), iv);
+
+  let decrypted = decipher.update(encrypted, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+
+  return decrypted;
+};
 
 app.use(
   cors({
@@ -39,11 +68,8 @@ app.use(
 );
 
 app.get("/", async (req, res) => {
+  const { s, e } = req.query; // Extract 's' (displayName) and 'e' (email) from the query parameters
   try {
-    const { s, e } = req.query; // Extract 's' (displayName) and 'e' (email) from the query parameters
-    const db = client.db(dbName);
-    const collection = db.collection("passwords");
-
     // Find passwords by user displayName and email
     const findResult = await collection
       .find({
@@ -51,6 +77,11 @@ app.get("/", async (req, res) => {
         "user.email": e,
       })
       .toArray();
+
+    // Decrypt each password before sending
+    findResult.forEach((doc) => {
+      doc.form.password = decrypt(doc.form.password);
+    });
 
     // Return the results as JSON
     res.json(findResult);
@@ -66,9 +97,6 @@ app.get("/", async (req, res) => {
 app.get("/check", async (req, res) => {
   try {
     const { site, username, userDisplayName, userEmail } = req.query;
-
-    const db = client.db(dbName);
-    const collection = db.collection("passwords");
 
     const findResult = await collection.findOne({
       "form.site": site,
@@ -86,23 +114,21 @@ app.get("/check", async (req, res) => {
       res.json({ exists: false });
     }
   } catch (error) {
-    console.error("Error in /check route:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
 
 // Save a password
 app.post("/save", async (req, res) => {
+  const { form, user } = req.body;
+
+  if (!form || !user) {
+    return res.status(400).json({ error: "Invalid request data" });
+  }
+  // Encrypt the password
+  form.password = encrypt(form.password);
+
   try {
-    const { form, user } = req.body;
-
-    if (!form || !user) {
-      return res.status(400).json({ error: "Invalid request data" });
-    }
-
-    const db = client.db(dbName);
-    const collection = db.collection("passwords");
-
     // Insert the data into MongoDB
     const saveResult = await collection.insertOne({
       form,
@@ -111,41 +137,15 @@ app.post("/save", async (req, res) => {
 
     res.json({ success: true, result: saveResult.insertedId }); // Return the inserted ID
   } catch (error) {
-    console.error("Error in /save route:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
 
 // Delete a password by id
-app.delete("/", async (req, res) => {
-  const { id, user } = req.body; // Extract id and user from the request body
-  const db = client.db(dbName);
-  const collection = db.collection("passwords");
-
-  try {
-    // Perform the delete operation based on id and user info
-    const deleteResult = await collection.deleteOne({
-      _id: new ObjectId(id),
-      ...user,
-    });
-    if (deleteResult.deletedCount > 0) {
-      res.send({ success: true, result: deleteResult });
-    } else {
-      res.status(404).send({ success: false, message: "Password not found" });
-    }
-  } catch (error) {
-    res
-      .status(500)
-      .send({ success: false, error: "Failed to delete password" });
-  }
-});
 
 app.delete("/delete/:id", async (req, res) => {
   try {
     const { id } = req.params;
-
-    const db = client.db(dbName);
-    const collection = db.collection("passwords");
 
     const deleteResult = await collection.deleteOne({ _id: new ObjectId(id) });
 
@@ -155,7 +155,6 @@ app.delete("/delete/:id", async (req, res) => {
       res.status(404).json({ success: false, message: "Form not found" });
     }
   } catch (error) {
-    console.error("Error in /delete route:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
