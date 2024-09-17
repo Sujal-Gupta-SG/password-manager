@@ -19,8 +19,7 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(bodyParser.json());
 
-const allowedOrigins = [
-  process.env.ALLOWEDORIGIN2, // Local development
+const allowedOrigins = [ // Local development
   process.env.ALLOWEDORIGIN, // Production
 ];
 
